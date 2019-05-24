@@ -1,76 +1,71 @@
-/*
-  Instruções para compilação e execução
-  Disciplina COM240 - Redes de Computadores
-  Professor Bruno Guazzelli Batista
-  Compilar - gcc servidorudp.c -o servidorudp
-  Executar - ./servidorudp
-*/
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <unistd.h> /* close() */
-#include <string.h> /* memset() */
-#include <dirent.h>
-
-#define LOCAL_SERVER_PORT 1500
-#define MAX_MSG 100
-
-int main(int argc, char *argv[]) {
-  
-  int sd, rc, n, cliLen;
-  struct sockaddr_in cliAddr, servAddr;
-  char msg[MAX_MSG];
-
-  /* socket creation */
-  sd=socket(AF_INET, SOCK_DGRAM, 0);
-  if(sd<0) {
-    printf("%s: cannot open socket \n",argv[0]);
-    //exit(1);
-  }
-
-  /* bind local server port */
-  servAddr.sin_family = AF_INET;
-  servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  servAddr.sin_port = htons(LOCAL_SERVER_PORT);
-  rc = bind (sd, (struct sockaddr *) &servAddr,sizeof(servAddr));
-  if(rc<0) {
-    printf("%s: cannot bind port number %d \n", 
-	   argv[0], LOCAL_SERVER_PORT);
-    //exit(1);
-  }
-
-  printf("%s: waiting for data on port UDP %u\n", 
-	   argv[0],LOCAL_SERVER_PORT);
-
-  /* server infinite loop */
-  while(1) {
-    
-    /* init buffer */
-    memset(msg,0x0,MAX_MSG);
+#include<sys/socket.h>
+#include<arpa/inet.h>
+#include<stdio.h>
+#include<unistd.h>
+#include<fcntl.h>
+#include<sys/types.h>
+#include<string.h>
+#include<stdlib.h>
 
 
-    /* receive message */
-    cliLen = sizeof(cliAddr);
-    n = recvfrom(sd, msg, MAX_MSG, 0, 
-		 (struct sockaddr *) &cliAddr, &cliLen);
-    printf("ip cliente: %d\n", cliAddr.sin_addr.s_addr);
+int main() {
 
-    if(n<0) {
-      printf("%s: cannot receive data \n",argv[0]);
-      continue;
+    char buff[2000];
+    char file_buffer[2000];
+    int sd, connfd, len;
+
+    struct sockaddr_in servaddr, cliaddr;
+
+    sd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sd == -1) {
+        printf(" socket not created in server\n");
+        exit(0);
+    } else {
+        printf("socket created in  server\n");
     }
-      
-    /* print received message */
-    printf("%s: from %s:UDP%u : %s \n", 
-	   argv[0],inet_ntoa(cliAddr.sin_addr),
-	   ntohs(cliAddr.sin_port),msg);
-    
-  }/* end of server infinite loop */
 
-  return 0;
+    bzero( & servaddr, sizeof(servaddr));
 
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(7802);
+
+    if (bind(sd, (struct sockaddr * ) & servaddr, sizeof(servaddr)) != 0)
+        printf("Not binded\n");
+    else
+        printf("Binded\n");
+
+    len = sizeof(cliaddr);
+
+    recvfrom(sd, buff, 1024, 0,
+        (struct sockaddr * ) & cliaddr, & len);
+
+    printf("%s\n", buff);
+    /* */
+    FILE * fp;
+    fp = fopen(buff, "r");
+    if (fp == NULL) {
+        printf("file does not exist\n");
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t file_size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (fread(file_buffer, file_size, 1, fp) <= 0) {
+        printf("unable to copy file into buffer\n");
+        exit(1);
+    }
+
+    printf("%d", file_size);
+    if (sendto(sd, file_buffer, strlen(file_buffer), 0, (struct sockaddr * ) & cliaddr, len) < 0) {
+        printf("error in sending the file\n");
+        exit(1);
+    }
+    bzero(file_buffer, sizeof(file_buffer));
+
+    /* */
+    close(sd);
+    fclose(fp);
+    return (0);
 }
