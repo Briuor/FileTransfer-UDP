@@ -6,56 +6,90 @@
 #include<sys/types.h>
 #include <stdlib.h>
 #include <string.h>
+#include<unistd.h>
+
+#define PACOTE_BUFFER_SIZE 100
+#define TRUE 1
+#define FALSE 0
+
+typedef struct pacote {
+    char buffer[PACOTE_BUFFER_SIZE];
+    int ack;
+    int seq;
+} Pacote;
+
+void error(char *msg) {
+    printf("%s\n",msg);
+    exit(1);
+}
 
 int main() {
     char buff[2000];
     int sockfd, connfd, len;
-
+    FILE * fp;
     struct sockaddr_in servaddr, cliaddr;
+    char new_file[] = "copied";
 
-    // create socket in client side
+    // cria socket do cliente
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (sockfd == -1) {
-        printf(" socket not created in client\n");
-        exit(0);
-    } else {
-        printf("socket created in  client\n");
-    }
+        error("erro ao criar socket");
+    } 
 
     bzero( & servaddr, sizeof(servaddr));
 
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY; // ANY address or use specific address
-    servaddr.sin_port = htons(7802); // Port address
+    servaddr.sin_addr.s_addr = INADDR_ANY; // qualquer endereço
+    servaddr.sin_port = htons(7802); // porta
 
-    printf("Type ur  UDP client message\n");
-    scanf("%s", buff);
+    // digita nome do arquivo
+    printf("Nome do arquivo: \n");
+    scanf(" %s", buff);
 
-    // send  msg to server
-
+    // envia nome do arquivo para servidor
     sendto(sockfd, buff, strlen(buff), 0,
         (struct sockaddr * ) & servaddr, sizeof(struct sockaddr));
-    char file_buffer[2000];
     int l = sizeof(struct sockaddr);
-    if (recvfrom(sockfd, file_buffer, 2000, 0, (struct sockaddr * ) & servaddr, & l) < 0) {
-        printf("error in recieving the file\n");
-        exit(1);
-    }
 
-    char new_file[] = "copied";
     strcat(new_file, buff);
-    FILE * fp;
-    fp = fopen(new_file, "w+");
-    printf("fileb: %s, size: %d\n", file_buffer, strlen(file_buffer));
-    if (fwrite(file_buffer, 1, strlen(file_buffer), fp) < 0) {
-        printf("error writting file\n");
-        exit(1);
+    fp = fopen(new_file, "wb");
+    // ---------------------------pacote-------------
+    Pacote pacote;
+    bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
+    int seq = 0;
+    while(1) {
+        // recebe pacote
+        if (recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) & servaddr, & l) < 0) {
+            error("erro ao receber pacote\n");
+        }
+        printf("seq %d, pacote.seq %d, pacote.ack %d\n", seq, pacote.seq, pacote.ack);
+        // se checksum deu errado pede de novo
+        // while(!checksum()) {
+            // if (recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) & servaddr, & l) < 0) {
+            //     printf("error in recieving the file\n");
+            //     exit(1);
+            // }
+        // }
+        // preenche ack do pacote recebido
+        pacote.ack = 1;
+        seq++;
+        // envia pacote com ack = 1 para o servidor
+        if (sendto(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) & servaddr, sizeof(struct sockaddr)) < 0) {
+            error("erro ao enviar pacote\n");
+        }
+
+        // escreve arquivo
+        if (fwrite(pacote.buffer, 1, PACOTE_BUFFER_SIZE, fp) < 0) {
+            error("erro ao escrever arquivo\n");
+        }
+
+        // reseta pacote
+        bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
+        pacote.ack = 0;
     }
 
-    //close client side connection
     close(sockfd);
     fclose(fp);
-
     return (0);
 }
