@@ -32,7 +32,7 @@ typedef struct pacote {
     char buffer[PACOTE_BUFFER_SIZE]; // buffer de bytes
     int ack; // flag de reconhecimento
     int seq; // numero de sequencia
-    int ultimo; // flag para verificar ultimo pacote
+    int ultimo; // flag para verificar se eh o ultimo pacote
 } Pacote;
 
 
@@ -67,18 +67,21 @@ void menu(int *opcao_escolhida) {
     printf("3) Sair\n");
     printf("---------------------\n");
     printf("Digite o numero da opcao desejada: \n");    
-    scanf("%d", opcao_escolhida);
+    scanf(" %d", opcao_escolhida);
 }
 
 void baixar(int sockfd, struct sockaddr_in *servaddr) {
-    char nome_arquivo[MAX_NOME_ARQUIVO]; // nome do arquivo requisitado
 
+    char nome_arquivo[MAX_NOME_ARQUIVO]; // nome do arquivo requisitado
+ 
+    // inicializa pacote (esse pacote no cliente que baixa o arquivo eh necessario para 
+    // preencher informacoes(ack) do pacote recebido e enviar de volta para o servidor)
     Pacote pacote;
     pacote.ack = FALSE;
     pacote.ultimo = FALSE;
     bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
 
-    int seq = 0;
+    int seq = 0; // verificador de numero de sequencia
     socklen_t l = sizeof(struct sockaddr);
     FILE *f;
     int aviso = CLIENTE_BAIXAR_ONLINE; // aviso que sera enviado para servidor dizendo que clinte que vai baixar esta online
@@ -112,7 +115,7 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
     f = fopen(new, "wb");
 
     // inicia recebimento de pacotes, ate receber o ultimo pacote
-    while(!pacote.ultimo) {
+    while(pacote.ultimo == FALSE) {
         // recebe pacote
         if(recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) &semeadoraddr, &l) < 0) {
             error("erro ao receber pacote\n");
@@ -188,6 +191,7 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
     fseek(fp, 0, SEEK_SET);
     int fr; // leitor de arquivo
     int numPacotes = (file_size / PACOTE_BUFFER_SIZE);
+    printf("numPacotes: %d\n", numPacotes);
     int i;
     int seq = 0;
     Pacote pacotes[numPacotes]; // array de pacotes a ser enviado
@@ -199,6 +203,7 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
         else pacotes[i].ultimo = FALSE;
 
     }
+    printf("init pacote\n");
     Pacote pacoter; // pacote recebido do cliente que baixa com ack preenchido ou nao
 
     // inicia envio de pacotes
