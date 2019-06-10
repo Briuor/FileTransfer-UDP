@@ -43,9 +43,8 @@ void initServer(int *sockfd, struct sockaddr_in *servaddr) {
 }
 
 int main() {
-    char cliente[2000];
     int sockfd; 
-    int l = sizeof(struct sockaddr_in);
+    socklen_t l = sizeof(struct sockaddr_in);
     struct sockaddr_in servaddr;
     struct sockaddr_in clienteaddr;    
     bzero(&(clienteaddr), sizeof(clienteaddr));
@@ -56,15 +55,16 @@ int main() {
 
     Cliente cliente_semear;
     bzero(&(cliente_semear.addr), sizeof(cliente_semear.addr));
-    cliente_baixar.online = FALSE;
+    cliente_semear.online = FALSE;
 
     int aviso = 0; // aviso que servidor recebe do cliente para saber qual esta online
 
     // cria socket do servidor
     initServer(&sockfd, &servaddr);
-
     if (bind(sockfd, (struct sockaddr * ) &servaddr, sizeof(servaddr)) != 0)
         printf("erro no bind\n");
+    printf("servidor inicializado\n");
+    printf("esperando clientes...\n");
 
     while(cliente_baixar.online == FALSE  || cliente_semear.online == FALSE) {
         // recebe aviso do cliente
@@ -103,7 +103,7 @@ int main() {
     if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_semear.addr), l) < 0) {
         error("erro ao enviar info cliente_semear\n");
     }
-    printf("enviou endereco do abaixar para semear\n");
+    printf("enviou endereco do baixar para semear\n");
 
     close(sockfd);
     return (0);

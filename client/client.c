@@ -8,11 +8,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #define TRUE 1
 #define FALSE 0
 
-#define PACOTE_BUFFER_SIZE 100
+#define PACOTE_BUFFER_SIZE 512
 
 // tamanho maximo do nome do arquivo semeado ou baixado
 #define MAX_NOME_ARQUIVO 200
@@ -28,16 +29,20 @@
 #define CLIENTE_SEMEAR_ONLINE 1
 
 typedef struct pacote {
-    char buffer[PACOTE_BUFFER_SIZE];
-    int ack;
-    int seq;
+    char buffer[PACOTE_BUFFER_SIZE]; // buffer de bytes
+    int ack; // flag de reconhecimento
+    int seq; // numero de sequencia
+    int ultimo; // flag para verificar ultimo pacote
 } Pacote;
 
+
+// dispara mensagem de erro e finaliza execucao
 void error(char *msg) {
     printf("%s\n",msg);
     exit(1);
 }
 
+// inicializa socket e servidor
 void initsocket(int *sockfd, struct sockaddr_in *servaddr) {
     *sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -67,10 +72,14 @@ void menu(int *opcao_escolhida) {
 
 void baixar(int sockfd, struct sockaddr_in *servaddr) {
     char nome_arquivo[MAX_NOME_ARQUIVO]; // nome do arquivo requisitado
+
     Pacote pacote;
+    pacote.ack = FALSE;
+    pacote.ultimo = FALSE;
     bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
+
     int seq = 0;
-    int l = sizeof(struct sockaddr);
+    socklen_t l = sizeof(struct sockaddr);
     FILE *f;
     int aviso = CLIENTE_BAIXAR_ONLINE; // aviso que sera enviado para servidor dizendo que clinte que vai baixar esta online
     struct sockaddr_in semeadoraddr; // informacoes do cliente semeador
@@ -80,21 +89,20 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
         error("erro ao enviar aviso\n");
     }
 
-    printf("esperando servidor\n");
+    printf("esperando servidor encontrar semeador...\n");
     // espera servidor retornar informações do cliente semeador
     if(recvfrom(sockfd, &semeadoraddr, l, 0, (struct sockaddr * ) &servaddr, &l) < 0) {
        error("erro ao receber pacote\n");
     }
 
-    printf("servidor encontrou cliente semeador:\n");
+    printf("servidor encontrou cliente semeador");
     printf("ip: %s\n", inet_ntoa(semeadoraddr.sin_addr));
     // digita nome do arquivo a ser baixado
-    printf("Nome do arquivo: \n");
+    printf("Digite o nome do arquivo desejado: ");
     scanf(" %s", nome_arquivo);
 
-    printf("nome digitado: %s\n", nome_arquivo);
-    // envia nome do arquivo para o cliente que possui o arquivo
-    if(sendto(sockfd, nome_arquivo, MAX_NOME_ARQUIVO, 0, (struct sockaddr * ) & semeadoraddr, sizeof(struct sockaddr)) < 0) {
+    // envia nome do arquivo desejado para o cliente semeador
+    if(sendto(sockfd, nome_arquivo, MAX_NOME_ARQUIVO, 0, (struct sockaddr * ) &semeadoraddr, sizeof(semeadoraddr)) < 0) {
         error("erro ao enviar nome_arquivo\n");
     }
 
@@ -102,8 +110,9 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
     char new[] = "copied";
     strcat(new, nome_arquivo);
     f = fopen(new, "wb");
-    // ---------------------------pacote-------------
-    while(1) {
+
+    // inicia recebimento de pacotes, ate receber o ultimo pacote
+    while(!pacote.ultimo) {
         // recebe pacote
         if(recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) &semeadoraddr, &l) < 0) {
             error("erro ao receber pacote\n");
@@ -117,22 +126,26 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
             // }
         // }
 
-        // preenche ack do pacote recebido
-        pacote.ack = 1;
-        seq++;
-        // envia pacote com ack = 1 para o servidor
-        if (sendto(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) &semeadoraddr, sizeof(struct sockaddr)) < 0) {
-            error("erro ao enviar pacote\n");
-        }
+        // verifica numero de sequencia para ver se pacotes estao chegando ordenados
+        if(seq == pacote.seq) {
+            // preenche pacote com o ack do pacote recebido e incrementa numero de sequencia
+            pacote.ack = 1;
+            seq++;
 
-        // escreve arquivo
-        if (fwrite(pacote.buffer, 1, PACOTE_BUFFER_SIZE, f) < 0) {
-            error("erro ao escrever arquivo\n");
-        }
+            // envia pacote com ack = 1 para o servidor
+            if (sendto(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) &semeadoraddr, sizeof(semeadoraddr)) < 0) {
+                error("erro ao enviar pacote\n");
+            }
 
-        // reseta pacote
-        bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
-        pacote.ack = 0;
+            // escreve arquivo
+            if (fwrite(pacote.buffer, 1, PACOTE_BUFFER_SIZE, f) < 0) {
+                error("erro ao escrever arquivo\n");
+            }
+
+            // reseta pacote para ser preenchido com informações do proximo
+            bzero(pacote.buffer, PACOTE_BUFFER_SIZE);
+            pacote.ack = 0;
+        }
     }
     fclose(f);
 }
@@ -142,28 +155,26 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
     char nome_arquivo[MAX_NOME_ARQUIVO];
     int aviso = CLIENTE_SEMEAR_ONLINE;
     struct sockaddr_in baixadoraddr;
-    int l = sizeof(struct sockaddr);
+    socklen_t l = sizeof(struct sockaddr);
 
     // avisa servidor dizendo que esta online esperando um cliente semeador
     if(sendto(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) servaddr, sizeof(struct sockaddr)) < 0) {
         error("erro ao enviar aviso\n");
     }
 
-    printf("esperando servidor\n");
+    printf("esperando servidor encontrar cliente que ira baixar...\n");
     // espera servidor retornar informações do cliente semeador
     if(recvfrom(sockfd, &baixadoraddr, l, 0, (struct sockaddr * ) &servaddr, &l) < 0) {
        error("erro ao receber pacote\n");
     }
 
-    printf("servidor encontrou cliente baixador:\n");
+    printf("servidor encontrou cliente baixador ");
     printf("ip: %s\n", inet_ntoa(baixadoraddr.sin_addr));
 
     // recebe nome do arquivo desejado
     if(recvfrom(sockfd, nome_arquivo, MAX_NOME_ARQUIVO, 0, (struct sockaddr * ) &baixadoraddr, &l) < 0) {
         error("erro ao receber nome do arquivo\n");
     }
-
-    printf("Nome do arquivo: %s\n", nome_arquivo);
 
     FILE * fp;
     fp = fopen(nome_arquivo, "rb");
@@ -176,17 +187,21 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
     size_t file_size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     int fr; // leitor de arquivo
-    // ---------------------------pacote-------------
     int numPacotes = (file_size / PACOTE_BUFFER_SIZE);
-    int i, j;
+    int i;
     int seq = 0;
     Pacote pacotes[numPacotes]; // array de pacotes a ser enviado
     for(i = 0; i < numPacotes; i++) {
         bzero(pacotes[i].buffer, PACOTE_BUFFER_SIZE);
-        pacotes[i].ack = 0;
+        pacotes[i].ack = FALSE;
         pacotes[i].seq = i;
+        if(i == numPacotes - 1) pacotes[i].ultimo = TRUE;
+        else pacotes[i].ultimo = FALSE;
+
     }
-    Pacote pacoter; // pacote recebido do cliente
+    Pacote pacoter; // pacote recebido do cliente que baixa com ack preenchido ou nao
+
+    // inicia envio de pacotes
     for(seq = 0; seq < numPacotes ; seq++) {
         // lê arquivo
         if ((fr = fread(pacotes[seq].buffer, PACOTE_BUFFER_SIZE, 1, fp)) < 0) {
@@ -194,24 +209,25 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
         }
 
         // envia pacote
-        if (sendto(sockfd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &baixadoraddr, l) < 0) {
+        if (sendto(sockfd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &baixadoraddr, sizeof(baixadoraddr)) < 0) {
             error("erro ao enviar pacote\n");
         }
 
-        // verifica se cliente recebeu
+        // verifica se cliente recebeu através do ack preenchido pelo cliente
         while(1) {
+            // recebe o mesmo pacote que enviou pro cliente só que com ack = true preenchido pelo cliente
             if(recvfrom(sockfd, &pacoter, sizeof(Pacote), 0, (struct sockaddr * ) & baixadoraddr, &l) < 0){
                 error("erro ao receber pacote\n");
             }
             pacotes[seq].ack = pacoter.ack;
             printf("seq: %d, pacote.seq: %d pacote.ack: %d\n", seq, pacotes[seq].seq, pacotes[seq].ack);
-            // se ack == false manda de novo
+            // se ack == false cliente nao recebeu, entao manda de novo
             if(pacotes[seq].ack == FALSE) {
-                if (sendto(sockfd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &baixadoraddr, l) < 0) {
+                if (sendto(sockfd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &baixadoraddr, sizeof(baixadoraddr)) < 0) {
                     error("erro ao enviar pacote\n");
                 }
             }
-            // se ack true sai do loop
+            // se ack == true sai do loop e envia proximo pacote
             else {
                 break;
             }
