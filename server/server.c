@@ -1,122 +1,110 @@
-#include<sys/socket.h>
-#include<arpa/inet.h>
-#include<stdio.h>
-#include<unistd.h>
-#include<fcntl.h>
-#include<sys/types.h>
-#include<string.h>
-#include<stdlib.h>
-#include<math.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 #define PACOTE_BUFFER_SIZE 100
 #define TRUE 1
 #define FALSE 0
 
-typedef struct pacote {
-    char buffer[PACOTE_BUFFER_SIZE];
-    int ack;
-    int seq;
-} Pacote;
+// constantes de tipo de aviso ao servidor
+#define CLIENTE_BAIXAR_ONLINE 2
+#define CLIENTE_SEMEAR_ONLINE 1
+
+
+typedef struct cliente {
+    struct sockaddr_in addr;
+    int online;
+} Cliente;
 
 void error(char *msg) {
     printf("%s\n",msg);
     exit(1);
 }
 
-int main() {
+void initServer(int *sockfd, struct sockaddr_in *servaddr) {
 
-    char buff[2000];
-    int sd, connfd, len;
-
-    struct sockaddr_in servaddr, cliaddr;
-    len = sizeof(cliaddr);
-
-    // cria socket do servidor
-    sd = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (sd == -1) {
+    *sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (*sockfd == -1) {
         printf(" socket not created in server\n");
         exit(0);
     } 
+    bzero(servaddr, sizeof(servaddr));
+    servaddr->sin_family = AF_INET;
+    servaddr->sin_addr.s_addr = INADDR_ANY;
+    servaddr->sin_port = htons(7802);
 
-    bzero( & servaddr, sizeof(servaddr));
+}
 
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(7802);
+int main() {
+    char cliente[2000];
+    int sockfd; 
+    int l = sizeof(struct sockaddr_in);
+    struct sockaddr_in servaddr;
+    struct sockaddr_in clienteaddr;    
+    bzero(&(clienteaddr), sizeof(clienteaddr));
 
-    if (bind(sd, (struct sockaddr * ) & servaddr, sizeof(servaddr)) != 0)
+    Cliente cliente_baixar;
+    bzero(&(cliente_baixar.addr), sizeof(cliente_baixar.addr));
+    cliente_baixar.online = FALSE;
+
+    Cliente cliente_semear;
+    bzero(&(cliente_semear.addr), sizeof(cliente_semear.addr));
+    cliente_baixar.online = FALSE;
+
+    int aviso = 0; // aviso que servidor recebe do cliente para saber qual esta online
+
+    // cria socket do servidor
+    initServer(&sockfd, &servaddr);
+
+    if (bind(sockfd, (struct sockaddr * ) &servaddr, sizeof(servaddr)) != 0)
         printf("erro no bind\n");
 
-    // recebe nome do arquivo desejado
-    recvfrom(sd, buff, 1024, 0,
-        (struct sockaddr * ) & cliaddr, & len);
-
-    printf("Nome do arquivo: %s\n", buff);
-
-    FILE * fp;
-    fp = fopen(buff, "rb");
-    if (fp == NULL) {
-        printf("arquivo nao existe\n");
-    }
-
-    // pega tamanho do arquivo
-    fseek(fp, 0, SEEK_END);
-    size_t file_size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    int fr; // leitor de arquivo
-    // ---------------------------pacote-------------
-    int numPacotes = (file_size / PACOTE_BUFFER_SIZE);
-    int i, j;
-    int seq = 0;
-    Pacote pacotes[numPacotes]; // array de pacotes a ser enviado
-    for(i = 0; i < numPacotes; i++) {
-        bzero(pacotes[i].buffer, PACOTE_BUFFER_SIZE);
-        pacotes[i].ack = 0;
-        pacotes[i].seq = i;
-    }
-    Pacote pacoter; // pacote recebido do cliente
-    for(seq = 0; seq < numPacotes ; seq++) {
-        // lê arquivo
-        if ((fr = fread(pacotes[seq].buffer, PACOTE_BUFFER_SIZE, 1, fp)) < 0) {
-            error("erro ao pegar bytes do arquivo\n");
+    while(cliente_baixar.online == FALSE  || cliente_semear.online == FALSE) {
+        // recebe aviso do cliente
+        if(recvfrom(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) &clienteaddr, & l) < 0) {
+            error("erro ao receber aviso do cliente");
         }
 
-        // envia pacote
-        if (sendto(sd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &cliaddr, len) < 0) {
-            error("erro ao enviar pacote\n");
+        // verifica qual cliente entrou
+        if(aviso == CLIENTE_BAIXAR_ONLINE && cliente_baixar.online == FALSE) {
+            cliente_baixar.addr = clienteaddr;
+            cliente_baixar.online = TRUE;
+            bzero(&(clienteaddr), sizeof(clienteaddr));
+            printf("cliente baixar entrou\n");
+        } 
+        else if(aviso == CLIENTE_SEMEAR_ONLINE && cliente_semear.online == FALSE) {
+            cliente_semear.addr = clienteaddr;
+            cliente_semear.online = TRUE;
+            bzero(&(clienteaddr), sizeof(clienteaddr));
+            printf("cliente semear entrou\n");
+        } 
+        else if(aviso == CLIENTE_BAIXAR_ONLINE) {
+            printf("já existe um cliente baixar online\n");
+        } 
+        else if(aviso == CLIENTE_SEMEAR_ONLINE) {
+            printf("já existe um cliente semear online\n");
         }
-
-        // verifica se cliente recebeu
-        while(1) {
-            if(recvfrom(sd, &pacoter, sizeof(Pacote), 0, (struct sockaddr * ) & cliaddr, & len) < 0){
-                error("erro ao receber pacote\n");
-            }
-            pacotes[seq].ack = pacoter.ack;
-            printf("seq: %d, pacote.seq: %d pacote.ack: %d\n", seq, pacotes[seq].seq, pacotes[seq].ack);
-            // se ack == false manda de novo
-            if(pacotes[seq].ack == FALSE) {
-                if (sendto(sd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &cliaddr, len) < 0) {
-                    error("erro ao enviar pacote\n");
-                }
-            }
-            // se ack true sai do loop
-            else {
-                break;
-            }
-        }
-        printf("cliente recebeu numSeq: %d\n", pacotes[seq].seq);
     }
-    if(feof(fp))
-        printf("Fim do arquivo!\n");
-    printf("Tamanho total: %d\n",file_size );
-    printf("ftell: %ld\n",ftell(fp) );
-    printf("utlimo pacote: %d\n",seq );
-    printf("numPacotes: %d\n", numPacotes);
-    printf("totalBytes: %d\n", numPacotes * PACOTE_BUFFER_SIZE);
-    printf("Tamanho - totalBytes: %d\n", file_size - (numPacotes * PACOTE_BUFFER_SIZE));
 
-    close(sd);
-    fclose(fp);
+    // envia informacoes do cliente_semear para cliente_baixar
+    if(sendto(sockfd, &(cliente_semear.addr), sizeof(cliente_semear.addr), 0, (struct sockaddr * ) &(cliente_baixar.addr), l) < 0) {
+        error("erro ao enviar info cliente_baixar\n");
+    }
+    printf("enviou endereco do semear para baixar\n");
+
+    // envia informacoes do cliente_baixar para cliente_semear
+    if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_semear.addr), l) < 0) {
+        error("erro ao enviar info cliente_semear\n");
+    }
+    printf("enviou endereco do abaixar para semear\n");
+
+    close(sockfd);
     return (0);
 }
