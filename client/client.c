@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <errno.h>
+#include <math.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <resolv.h>
@@ -33,8 +34,8 @@ typedef struct pacote {
     int ack; // flag de reconhecimento
     int seq; // numero de sequencia
     int ultimo; // flag para verificar se eh o ultimo pacote
+    int checksum; //Soma de Verificação
 } Pacote;
-
 
 // dispara mensagem de erro e finaliza execucao
 void error(char *msg) {
@@ -70,6 +71,27 @@ void menu(int *opcao_escolhida) {
     scanf(" %d", opcao_escolhida);
 }
 
+void calc_checksum(Pacote *pct) { //Calcula a soma de verificacao
+    unsigned int i, sum = 0;
+    for (i = 0; i < PACOTE_BUFFER_SIZE; i++) {
+        if (pct->buffer[i] == '1') sum += 2*i;
+        else sum += i;
+    }
+
+    pct->checksum = sum;
+}
+
+int verifica_checksum(Pacote *pct) { //Verifica o checksum
+    unsigned int i, sum = 0;
+    for (i = 0; i < PACOTE_BUFFER_SIZE; i++) {
+        if (pct->buffer[i] == '1') sum += 2*i;
+        else sum += i;
+    }
+    
+    if (sum == pct->checksum) return TRUE;
+    else return FALSE;
+}
+
 void baixar(int sockfd, struct sockaddr_in *servaddr) {
 
     char nome_arquivo[MAX_NOME_ARQUIVO]; // nome do arquivo requisitado
@@ -86,6 +108,7 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
     FILE *f;
     int aviso = CLIENTE_BAIXAR_ONLINE; // aviso que sera enviado para servidor dizendo que clinte que vai baixar esta online
     struct sockaddr_in semeadoraddr; // informacoes do cliente semeador
+    int checksum_ok = 0; //Flag para verificação do checksum
 
     // avisa servidor dizendo que esta online esperando um cliente semeador
     if(sendto(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) servaddr, sizeof(struct sockaddr)) < 0) {
@@ -120,14 +143,18 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
         if(recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) &semeadoraddr, &l) < 0) {
             error("erro ao receber pacote\n");
         }
-        printf("seq %d, pacote.seq %d, pacote.ack %d\n", seq, pacote.seq, pacote.ack);
-        // se checksum deu errado pede de novo
-        // while(!checksum()) {
-            // if (recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) & semeadoraddr, & l) < 0) {
-            //     printf("error in recieving the file\n");
-            //     exit(1);
-            // }
-        // }
+        
+        checksum_ok = verifica_checksum(&pacote); //Verifica a soma de verificação
+
+        printf("seq %d, ack %d, checksum = %d\n", seq, pacote.ack, pacote.checksum); //Imprime informações referentes ao pacote recebido
+        
+        // se checksum deu errado, pede novamente o mesmo pacote
+        while(checksum_ok != TRUE) {
+            if (recvfrom(sockfd, &pacote, sizeof(Pacote), 0, (struct sockaddr * ) & semeadoraddr, & l) < 0) {
+                printf("error in recieving the file\n");
+                exit(1);
+            }
+        }
 
         // verifica numero de sequencia para ver se pacotes estao chegando ordenados
         if(seq == pacote.seq) {
@@ -215,6 +242,8 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
         if ((fr = fread(pacotes[seq].buffer, PACOTE_BUFFER_SIZE, 1, fp)) < 0) {
             error("erro ao pegar bytes do arquivo\n");
         }
+
+        calc_checksum(&pacotes[seq]); //Calcula o checksum do pacote atual
 
         // envia pacote
         if (sendto(sockfd, &pacotes[seq], sizeof(Pacote), 0, (struct sockaddr * ) &baixadoraddr, sizeof(baixadoraddr)) < 0) {
