@@ -50,7 +50,7 @@ void initsocket(int *sockfd, struct sockaddr_in *servaddr) {
         error("erro ao criar socket");
     } 
 
-    bzero( servaddr, sizeof(servaddr));
+    bzero( (char *)servaddr, sizeof(servaddr));
 
     servaddr->sin_family = AF_INET;
     servaddr->sin_addr.s_addr = INADDR_ANY; // qualquer endereço
@@ -94,7 +94,7 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
 
     printf("esperando servidor encontrar semeador...\n");
     // espera servidor retornar informações do cliente semeador
-    if(recvfrom(sockfd, &semeadoraddr, l, 0, (struct sockaddr * ) &servaddr, &l) < 0) {
+    if(recvfrom(sockfd, &semeadoraddr, l, 0, (struct sockaddr * ) servaddr, &l) < 0) {
        error("erro ao receber pacote\n");
     }
 
@@ -156,10 +156,12 @@ void baixar(int sockfd, struct sockaddr_in *servaddr) {
 void semear(int sockfd, struct sockaddr_in *servaddr) {
 
     char nome_arquivo[MAX_NOME_ARQUIVO];
+    bzero(nome_arquivo, MAX_NOME_ARQUIVO);
     int aviso = CLIENTE_SEMEAR_ONLINE;
     struct sockaddr_in baixadoraddr;
+    bzero(&baixadoraddr, sizeof(baixadoraddr));
     socklen_t l = sizeof(struct sockaddr);
-
+    socklen_t l2 = sizeof(baixadoraddr);
     // avisa servidor dizendo que esta online esperando um cliente semeador
     if(sendto(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) servaddr, sizeof(struct sockaddr)) < 0) {
         error("erro ao enviar aviso\n");
@@ -167,7 +169,7 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
 
     printf("esperando servidor encontrar cliente que ira baixar...\n");
     // espera servidor retornar informações do cliente semeador
-    if(recvfrom(sockfd, &baixadoraddr, l, 0, (struct sockaddr * ) &servaddr, &l) < 0) {
+    if(recvfrom(sockfd, &baixadoraddr, l2, 0, (struct sockaddr * ) servaddr, &l) < 0) {
        error("erro ao receber pacote\n");
     }
 
@@ -175,7 +177,8 @@ void semear(int sockfd, struct sockaddr_in *servaddr) {
     printf("ip: %s\n", inet_ntoa(baixadoraddr.sin_addr));
 
     // recebe nome do arquivo desejado
-    if(recvfrom(sockfd, nome_arquivo, MAX_NOME_ARQUIVO, 0, (struct sockaddr * ) &baixadoraddr, &l) < 0) {
+    if(recvfrom(sockfd, nome_arquivo, MAX_NOME_ARQUIVO, 0, (struct sockaddr * ) &baixadoraddr, &l2) < 0) {
+    printf("nome %s\n", nome_arquivo); 
         error("erro ao receber nome do arquivo\n");
     }
 

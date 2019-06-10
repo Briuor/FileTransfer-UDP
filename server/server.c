@@ -35,7 +35,7 @@ void initServer(int *sockfd, struct sockaddr_in *servaddr) {
         printf(" socket not created in server\n");
         exit(0);
     } 
-    bzero(servaddr, sizeof(servaddr));
+    bzero((char *)servaddr, sizeof(servaddr));
     servaddr->sin_family = AF_INET;
     servaddr->sin_addr.s_addr = INADDR_ANY;
     servaddr->sin_port = htons(7802);
@@ -68,7 +68,7 @@ int main() {
 
     while(cliente_baixar.online == FALSE  || cliente_semear.online == FALSE) {
         // recebe aviso do cliente
-        if(recvfrom(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) &clienteaddr, & l) < 0) {
+        if(recvfrom(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) &clienteaddr, &l) < 0) {
             error("erro ao receber aviso do cliente");
         }
 
@@ -94,13 +94,13 @@ int main() {
     }
 
     // envia informacoes do cliente_semear para cliente_baixar
-    if(sendto(sockfd, &(cliente_semear.addr), sizeof(cliente_semear.addr), 0, (struct sockaddr * ) &(cliente_baixar.addr), l) < 0) {
+    if(sendto(sockfd, &(cliente_semear.addr), sizeof(cliente_semear.addr), 0, (struct sockaddr * ) &(cliente_baixar.addr), sizeof(cliente_baixar.addr)) < 0) {
         error("erro ao enviar info cliente_baixar\n");
     }
     printf("enviou endereco do semear para baixar\n");
 
     // envia informacoes do cliente_baixar para cliente_semear
-    if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_semear.addr), l) < 0) {
+    if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_semear.addr), sizeof(cliente_semear.addr)) < 0) {
         error("erro ao enviar info cliente_semear\n");
     }
     printf("enviou endereco do baixar para semear\n");
