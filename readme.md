@@ -8,7 +8,7 @@ O FileTransfer-UDP é um transferidor de arquivos entre clientes com o auxílio 
 O protocolo utilizado foi o UDP, portanto, os artifícios para garantia de integridade e segurança foram implementados na camada de aplicação.
 
 ### Instruções para Execução
-Os comandos dever ser utilizador na pasta raíz do projeto.
+Os comandos dever ser utilizados na pasta raíz do projeto.
 - Execução do Servidor (Terminal 1)
 ```sh
 $ make
@@ -26,8 +26,9 @@ $ cd cliente_baixa
 $ ./client
 ```
 
-Após executar o servidor e os dois clientes, o arquivo a ser baixado deve ser informado no terminal do cliente baixador.
-(O arquivo deve estar previamente no diretório do cliente semeador).
+Após executar o servidor e os dois clientes, o arquivo a ser baixado deve ser informado no terminal do cliente baixador, com o formato "nome.extensão".
+
+(O arquivo deve estar previamente no diretório do cliente semeador)
 
 ### Informações Impressas sobre os Pacotes
 
@@ -50,4 +51,4 @@ para i de 0 a TAM_BUFFER:
         soma += i
 ```
 O resultado da soma de verificação é salvo dentro do própio pacote em uma variável inteira. Quando o pacote chega, o cliente baixador calcula a soma de verificação novamente, com o mesmo algoritmo, e compara com o resultado presente no pacote.
-Caso o resultado não segue igual, ele solicita ao outro cliente que o mesmo pacote seja enviado novamente.
+Caso o resultado não seja igual, ele solicita ao outro cliente que o mesmo pacote seja enviado novamente.
