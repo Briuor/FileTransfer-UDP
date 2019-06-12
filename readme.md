@@ -27,7 +27,9 @@ $ ./client
 ```
 
 Após executar o servidor e os dois clientes, o arquivo a ser baixado deve ser informado no terminal do cliente baixador, com o formato "nome.extensão".
+
 Exemplo: musica.mp3 
+
 (o arquivo musica.mp3 existe no diretorio do cliente_envia e pode ser usado para teste)
 
 (O arquivo a ser baixado deve estar previamente no diretório do cliente_envia)
