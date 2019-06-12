@@ -27,10 +27,12 @@ $ ./client
 ```
 
 Após executar o servidor e os dois clientes, o arquivo a ser baixado deve ser informado no terminal do cliente baixador, com o formato "nome.extensão".
+Exemplo: musica.mp3 
+(o arquivo musica.mp3 existe no diretorio do cliente_envia e pode ser usado para teste)
 
-Um nome de arquivo valido que se encontra dentro do diretorio do cliente_envia eh o "musica.mp3" que pode ser usado para teste.
+(O arquivo a ser baixado deve estar previamente no diretório do cliente_envia)
 
-(O arquivo deve estar previamente no diretório do cliente_envia)
+O arquivo baixado pelo cliente baixador se encontra dentro do diretorio cliente_baixa com prefixo "copied" antes do nome original do arquivo baixado.
 
 ### Informações Impressas sobre os Pacotes
 
