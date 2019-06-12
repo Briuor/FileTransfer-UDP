@@ -15,7 +15,7 @@
 
 // constantes de tipo de aviso ao servidor
 #define CLIENTE_BAIXAR_ONLINE 2
-#define CLIENTE_SEMEAR_ONLINE 1
+#define CLIENTE_enviar_ONLINE 1
 
 
 typedef struct cliente {
@@ -53,9 +53,9 @@ int main() {
     bzero(&(cliente_baixar.addr), sizeof(cliente_baixar.addr));
     cliente_baixar.online = FALSE;
 
-    Cliente cliente_semear;
-    bzero(&(cliente_semear.addr), sizeof(cliente_semear.addr));
-    cliente_semear.online = FALSE;
+    Cliente cliente_enviar;
+    bzero(&(cliente_enviar.addr), sizeof(cliente_enviar.addr));
+    cliente_enviar.online = FALSE;
 
     int aviso = 0; // aviso que servidor recebe do cliente para saber qual esta online
 
@@ -64,9 +64,9 @@ int main() {
     if (bind(sockfd, (struct sockaddr * ) &servaddr, sizeof(servaddr)) != 0)
         printf("erro no bind\n");
     printf("servidor inicializado\n");
-    printf("esperando clientes...\n");
+    printf("esperando clientes baixar e enviar entrarem...\n");
 
-    while(cliente_baixar.online == FALSE  || cliente_semear.online == FALSE) {
+    while(cliente_baixar.online == FALSE  || cliente_enviar.online == FALSE) {
         // recebe aviso do cliente
         if(recvfrom(sockfd, &aviso, sizeof(aviso), 0, (struct sockaddr * ) &clienteaddr, &l) < 0) {
             error("erro ao receber aviso do cliente");
@@ -79,31 +79,25 @@ int main() {
             bzero(&(clienteaddr), sizeof(clienteaddr));
             printf("cliente baixar entrou\n");
         } 
-        else if(aviso == CLIENTE_SEMEAR_ONLINE && cliente_semear.online == FALSE) {
-            cliente_semear.addr = clienteaddr;
-            cliente_semear.online = TRUE;
+        else if(aviso == CLIENTE_enviar_ONLINE && cliente_enviar.online == FALSE) {
+            cliente_enviar.addr = clienteaddr;
+            cliente_enviar.online = TRUE;
             bzero(&(clienteaddr), sizeof(clienteaddr));
-            printf("cliente semear entrou\n");
+            printf("cliente enviar entrou\n");
         } 
-        else if(aviso == CLIENTE_BAIXAR_ONLINE) {
-            printf("já existe um cliente baixar online\n");
-        } 
-        else if(aviso == CLIENTE_SEMEAR_ONLINE) {
-            printf("já existe um cliente semear online\n");
-        }
     }
 
-    // envia informacoes do cliente_semear para cliente_baixar
-    if(sendto(sockfd, &(cliente_semear.addr), sizeof(cliente_semear.addr), 0, (struct sockaddr * ) &(cliente_baixar.addr), sizeof(cliente_baixar.addr)) < 0) {
+    // envia informacoes do cliente_enviar para cliente_baixar
+    if(sendto(sockfd, &(cliente_enviar.addr), sizeof(cliente_enviar.addr), 0, (struct sockaddr * ) &(cliente_baixar.addr), sizeof(cliente_baixar.addr)) < 0) {
         error("erro ao enviar info cliente_baixar\n");
     }
-    printf("enviou endereco do semear para baixar\n");
+    printf("enviou endereco do cliente_enviar para cliente_baixar\n");
 
-    // envia informacoes do cliente_baixar para cliente_semear
-    if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_semear.addr), sizeof(cliente_semear.addr)) < 0) {
-        error("erro ao enviar info cliente_semear\n");
+    // envia informacoes do cliente_baixar para cliente_enviar
+    if(sendto(sockfd, &(cliente_baixar.addr), sizeof(cliente_baixar.addr), 0, (struct sockaddr * ) &(cliente_enviar.addr), sizeof(cliente_enviar.addr)) < 0) {
+        error("erro ao enviar info cliente_enviar\n");
     }
-    printf("enviou endereco do baixar para semear\n");
+    printf("enviou endereco do cliente_baixar para cliente_enviar\n");
 
     close(sockfd);
     return (0);
