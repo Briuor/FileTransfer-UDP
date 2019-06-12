@@ -8,7 +8,7 @@ O FileTransfer-UDP é um transferidor de arquivos entre clientes com o auxílio 
 O protocolo utilizado foi o UDP, portanto, os artifícios para garantia de integridade e segurança foram implementados na camada de aplicação.
 
 ### Instruções para Execução
-Os comandos dever ser utilizados na pasta raíz do projeto.
+Os comandos dever ser utilizados na pasta raíz do projeto(Diretorio FileTransfer-UDP).
 - Execução do Servidor (Terminal 1)
 ```sh
 $ make
@@ -28,7 +28,9 @@ $ ./client
 
 Após executar o servidor e os dois clientes, o arquivo a ser baixado deve ser informado no terminal do cliente baixador, com o formato "nome.extensão".
 
-(O arquivo deve estar previamente no diretório do cliente semeador)
+Um nome de arquivo valido que se encontra dentro do diretorio do cliente_envia eh o "musica.mp3" que pode ser usado para teste.
+
+(O arquivo deve estar previamente no diretório do cliente_envia)
 
 ### Informações Impressas sobre os Pacotes
 

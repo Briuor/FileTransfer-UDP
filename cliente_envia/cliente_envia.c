@@ -1,3 +1,16 @@
+//--------------------------------------------------------------------
+//- Instrucoes de Execucao em: https://github.com/Briuor/FileTransfer-UDP
+//-                                                                  -  
+//- Transferidor de arquivos entre clientes com o auxílio de um      -
+//- um servidor que intermedia a conexão de dois clientes,           -
+//- baseado na arquitetura P2P. O protocolo utilizado foi o UDP,     -
+//- portanto, os artifícios para  garantia de integridade e segurança-
+//- foram implementados na camada de aplicação.                      -
+//-                                                                  -
+//- Alunos:                                                          -
+//-    Bruno Fernando Lopes - 2017014669                             -
+//-    Érick de Oliveira Teixeira - 2017001437                       -
+//--------------------------------------------------------------------
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
